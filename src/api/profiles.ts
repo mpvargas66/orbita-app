@@ -5,9 +5,19 @@ export interface ProfileSummary {
   id: string;
   alias: string;
   profileType: string;
-  city?: string;
-  photoUrl?: string;
-  membershipType?: string;
+  // null when the profile hides its location or age.
+  city: string | null;
+  region: string | null;
+  ageMin: number | null;
+  ageMax: number | null;
+  photoUrl: string | null;
+  membershipType: "free" | "plus" | "premium";
+  isVerified: boolean;
+  isIdentityVerified: boolean;
+  isAvailable: boolean;
+  lookingFor: string[] | null;
+  // null when the profile hides its online status or was never seen.
+  lastSeenAt: string | null;
 }
 
 export interface ProfilePhoto {
@@ -116,6 +126,11 @@ export function setProfilePhoto(photoId: string): Promise<{ ok: true }> {
 // If it was the profile photo, the backend promotes the next safe photo.
 export function deletePhoto(photoId: string): Promise<{ ok: true }> {
   return apiRequest(`/api/photos/${photoId}`, { method: "DELETE" });
+}
+
+// Marks the current user as active, for "last seen" and Explore ordering.
+export function pingPresence(): Promise<{ ok: boolean }> {
+  return apiRequest("/api/profiles/ping", { method: "POST" });
 }
 
 export function sendMessageRequest(

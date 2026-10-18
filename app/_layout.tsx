@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "@/store/useAuthStore";
 import { OrbitaFrame } from "@/components/OrbitaFrame";
+import { pingPresence } from "@/api/profiles";
+
+const PRESENCE_INTERVAL_MS = 2 * 60 * 1000;
 
 export default function RootLayout() {
   const { token, hydrate } = useAuthStore();
@@ -24,6 +27,23 @@ export default function RootLayout() {
       router.replace("/(tabs)");
     }
   }, [token, segments, ready]);
+
+  // Keep "last seen" fresh while the app is open and in the foreground.
+  useEffect(() => {
+    if (!token) return;
+    const ping = () => { pingPresence().catch(() => {}); };
+    ping();
+    const interval = setInterval(() => {
+      if (AppState.currentState === "active") ping();
+    }, PRESENCE_INTERVAL_MS);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") ping();
+    });
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [token]);
 
   if (!ready) return null;
 

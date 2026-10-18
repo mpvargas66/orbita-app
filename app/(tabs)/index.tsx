@@ -1,18 +1,10 @@
 import { useEffect, useState } from "react";
 import { View, FlatList, ActivityIndicator, Text, RefreshControl, StyleSheet } from "react-native";
 import { ProfileCard } from "@/components/ProfileCard";
-import { getProfiles } from "@/api/profiles";
-
-interface Profile {
-  id: string;
-  alias: string;
-  profileType: string;
-  city?: string;
-  photoUrl?: string;
-}
+import { getProfiles, type ProfileSummary } from "@/api/profiles";
 
 export default function ExploreScreen() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
