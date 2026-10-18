@@ -51,6 +51,28 @@ export interface ProfileDetail {
   cooldownDays: number;
   isOwnerViewer: boolean;
   photos: ProfilePhoto[];
+  isIdentityVerified: boolean;
+  experienceLevel: string | null;
+  // Free-text fields. Couples fill the *1/*2 variants (one per person); singles use
+  // height1/bodyType1/bodyHair1 and the unnumbered smokes/drinks/sexuality.
+  height1: string | null;
+  height2: string | null;
+  bodyType1: string | null;
+  bodyType2: string | null;
+  bodyHair1: string | null;
+  bodyHair2: string | null;
+  smokes: string | null;
+  smokes1: string | null;
+  smokes2: string | null;
+  drinks: string | null;
+  drinks1: string | null;
+  drinks2: string | null;
+  sexuality: string | null;
+  sexuality1: string | null;
+  sexuality2: string | null;
+  languages: string | null;
+  // null when the profile hides its online status.
+  lastSeenAt: string | null;
 }
 
 export async function getProfiles(): Promise<ProfileSummary[]> {
@@ -131,6 +153,38 @@ export function deletePhoto(photoId: string): Promise<{ ok: true }> {
 // Marks the current user as active, for "last seen" and Explore ordering.
 export function pingPresence(): Promise<{ ok: boolean }> {
   return apiRequest("/api/profiles/ping", { method: "POST" });
+}
+
+export interface ReactionState {
+  likes: number;
+  hots: number;
+  myLike: boolean;
+  myHot: boolean;
+}
+
+export function getReactions(profileId: string): Promise<ReactionState> {
+  return apiRequest<ReactionState>(`/api/profiles/${profileId}/reactions`);
+}
+
+// Toggles a like/hot reaction; the backend returns the new state and counts.
+export function toggleReaction(
+  profileId: string,
+  type: "like" | "hot"
+): Promise<{ active: boolean; type: "like" | "hot"; counts: { likes: number; hots: number } }> {
+  return apiRequest("/api/reactions", {
+    method: "POST",
+    body: JSON.stringify({ toProfileId: profileId, type }),
+  });
+}
+
+// "Solicitud de amistad": becomes a match ("mutual") when the other side already sent one.
+export function sendFriendRequest(
+  profileId: string
+): Promise<{ status: "pending" | "mutual"; conversationId?: string | null }> {
+  return apiRequest("/api/interests", {
+    method: "POST",
+    body: JSON.stringify({ to_profile_id: profileId }),
+  });
 }
 
 export function sendMessageRequest(
