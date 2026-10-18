@@ -232,15 +232,21 @@ export default function PerfilScreen() {
       </View>
 
       <View style={styles.body}>
-        {profile.photoCount !== null ? (
-          <View style={styles.statCard}>
-            <Ionicons name="images-outline" size={20} color="#9333ea" />
-            <Text style={styles.statValue}>{profile.photoCount}</Text>
-            <Text style={styles.statLabel}>
-              {profile.photoCount === 1 ? "foto subida" : "fotos subidas"}
-            </Text>
-          </View>
-        ) : null}
+        <TouchableOpacity style={styles.statCard} onPress={() => router.push("/mis-fotos")}>
+          <Ionicons name="images-outline" size={20} color="#9333ea" />
+          {profile.photoCount !== null ? (
+            <>
+              <Text style={styles.statValue}>{profile.photoCount}</Text>
+              <Text style={styles.statLabel}>
+                {profile.photoCount === 1 ? "foto subida" : "fotos subidas"}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.statLabel}>Mis fotos</Text>
+          )}
+          <Text style={styles.statLink}>Ver mis fotos</Text>
+          <Ionicons name="chevron-forward" size={16} color="#9333ea" />
+        </TouchableOpacity>
 
         {profile.bio ? (
           <View style={styles.section}>
@@ -389,8 +395,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   statLabel: {
+    flex: 1,
     color: "#888888",
     fontSize: 14,
+  },
+  statLink: {
+    color: "#9333ea",
+    fontSize: 14,
+    fontWeight: "600",
   },
   section: {
     marginTop: 24,

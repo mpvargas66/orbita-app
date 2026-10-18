@@ -95,6 +95,24 @@ export function addGalleryPhoto(uri: string): Promise<{ url: string; photoId: st
   return apiRequest("/api/uploads/gallery-photo", { method: "POST", body: imageFormData(uri) });
 }
 
+export interface MyPhoto {
+  id: string;
+  url: string;
+  thumbnailUrl: string | null;
+  isProfilePhoto: boolean;
+  isApproved: boolean;
+}
+
+// Own non-explicit photos only, profile photo first.
+export async function getMyPhotos(): Promise<MyPhoto[]> {
+  const data = await apiRequest<{ photos: MyPhoto[] }>("/api/photos");
+  return data.photos;
+}
+
+export function setProfilePhoto(photoId: string): Promise<{ ok: true }> {
+  return apiRequest(`/api/photos/${photoId}/set-main`, { method: "PATCH" });
+}
+
 export function sendMessageRequest(
   toProfileId: string,
   message: string
