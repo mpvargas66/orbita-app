@@ -192,9 +192,7 @@ export default function MisFotosScreen() {
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.grid}
           ListHeaderComponent={
-            <Text style={styles.hint}>
-              Toca una foto para usarla como foto de perfil. Mantén presionada para más opciones.
-            </Text>
+            <Text style={styles.hint}>Toca para elegir foto de perfil · Mantén presionado para opciones</Text>
           }
           renderItem={({ item }) => (
             <TouchableOpacity

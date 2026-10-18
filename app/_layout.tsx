@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "@/store/useAuthStore";
+import { OrbitaFrame } from "@/components/OrbitaFrame";
 
 export default function RootLayout() {
   const { token, hydrate } = useAuthStore();
@@ -26,9 +28,11 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0a0a0a" } }} />
-    </>
+      {/* Global glow overlay, rendered above every screen */}
+      <OrbitaFrame />
+    </View>
   );
 }
