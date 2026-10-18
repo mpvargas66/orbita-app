@@ -1,3 +1,4 @@
+import { File } from "expo-file-system";
 import { apiRequest } from "./client";
 
 export interface ProfileSummary {
@@ -76,17 +77,22 @@ export function getMyProfile(): Promise<MyProfileResponse> {
   return apiRequest<MyProfileResponse>("/api/profiles/me");
 }
 
-// Uploads a picked image as the new profile photo (the backend replaces the current one).
-export function uploadProfilePhoto(asset: {
-  uri: string;
-  fileName?: string | null;
-  mimeType?: string | null;
-}): Promise<{ url: string; photoId: string }> {
-  const name = asset.fileName ?? asset.uri.split("/").pop() ?? "photo.jpg";
+// Expo's global fetch can't send React Native's { uri, name, type } FormData parts
+// ("Unsupported FormDataPart"); it needs a Blob-like object, which expo-file-system's File is.
+function imageFormData(uri: string): FormData {
   const formData = new FormData();
-  // React Native's FormData takes a { uri, name, type } object for files.
-  formData.append("file", { uri: asset.uri, name, type: asset.mimeType ?? "image/jpeg" } as unknown as Blob);
-  return apiRequest("/api/uploads/photo", { method: "POST", body: formData });
+  formData.append("file", new File(uri));
+  return formData;
+}
+
+// Replaces the current profile photo.
+export function uploadProfilePhoto(uri: string): Promise<{ url: string; photoId: string }> {
+  return apiRequest("/api/uploads/photo", { method: "POST", body: imageFormData(uri) });
+}
+
+// Adds a photo to the gallery; it only becomes the profile photo if it's the first one.
+export function addGalleryPhoto(uri: string): Promise<{ url: string; photoId: string }> {
+  return apiRequest("/api/uploads/gallery-photo", { method: "POST", body: imageFormData(uri) });
 }
 
 export function sendMessageRequest(

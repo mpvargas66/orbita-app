@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Avatar } from "@/components/Avatar";
-import { getMyProfile, uploadProfilePhoto, type MyProfileResponse } from "@/api/profiles";
+import { addGalleryPhoto, getMyProfile, uploadProfilePhoto, type MyProfileResponse } from "@/api/profiles";
 
 const PROFILE_TYPE_LABELS: Record<string, string> = {
   couple_het: "Pareja heterosexual",
@@ -99,11 +99,20 @@ export default function PerfilScreen() {
     }, [])
   );
 
-  async function handlePickPhoto() {
+  function showPhotoOptions() {
+    Alert.alert("Fotos", undefined, [
+      { text: "Agregar a la galería", onPress: () => handlePickPhoto("gallery") },
+      { text: "Cambiar foto de perfil", onPress: () => handlePickPhoto("profile") },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  }
+
+  async function handlePickPhoto(target: "gallery" | "profile") {
     // The system photo picker needs no library permission on iOS 11+ or Android.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
+      // Profile photos are square; gallery photos keep their original framing.
+      allowsEditing: target === "profile",
       aspect: [1, 1],
       quality: 0.8,
     });
@@ -111,7 +120,9 @@ export default function PerfilScreen() {
 
     setUploading(true);
     try {
-      await uploadProfilePhoto(result.assets[0]);
+      const uri = result.assets[0].uri;
+      if (target === "profile") await uploadProfilePhoto(uri);
+      else await addGalleryPhoto(uri);
       await load();
     } catch (e: unknown) {
       Alert.alert("Error", e instanceof Error ? e.message : "No se pudo subir la foto");
@@ -175,10 +186,10 @@ export default function PerfilScreen() {
     >
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={handlePickPhoto}
+          onPress={showPhotoOptions}
           disabled={uploading}
           style={styles.avatarWrapper}
-          accessibilityLabel="Cambiar foto de perfil"
+          accessibilityLabel="Agregar o cambiar fotos"
         >
           <Avatar photoUrl={profile.photoUrl} alias={profile.alias} size={96} />
           <View style={styles.avatarBadge}>
