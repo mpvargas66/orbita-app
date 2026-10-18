@@ -50,12 +50,15 @@ export function ReportSheet({
   profileId,
   alias,
   conversationId,
+  context,
   onClose,
 }: {
   visible: boolean;
   profileId: string;
   alias: string;
   conversationId?: string | null;
+  // Extra info for moderators (e.g. the reported room message), shown and sent with the details.
+  context?: string | null;
   onClose: () => void;
 }) {
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -72,10 +75,11 @@ export function ReportSheet({
     if (!reason || sending) return;
     setSending(true);
     try {
+      const fullDetails = [context, details.trim()].filter(Boolean).join("\n\n");
       await reportProfile({
         profileId,
         reason,
-        details: details.trim() || null,
+        details: fullDetails ? fullDetails.slice(0, 1000) : null,
         conversationId: conversationId ?? null,
       });
       close();
@@ -101,6 +105,9 @@ export function ReportSheet({
               <Ionicons name="close" size={22} color="#888888" />
             </TouchableOpacity>
           </View>
+          {context ? (
+            <Text style={styles.context} numberOfLines={3}>{context}</Text>
+          ) : null}
           <Text style={styles.subtitle}>Selecciona el motivo del reporte:</Text>
 
           {REPORT_REASONS.map((r) => {
@@ -174,6 +181,15 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 17,
     fontWeight: "700",
+  },
+  context: {
+    color: "#888888",
+    fontSize: 13,
+    fontStyle: "italic",
+    backgroundColor: "#0a0a0a",
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
   },
   subtitle: {
     color: "#888888",
