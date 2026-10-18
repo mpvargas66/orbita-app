@@ -7,13 +7,15 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ActionSheetIOS,
+  Platform,
   useWindowDimensions,
   StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { addGalleryPhoto, getMyPhotos, setProfilePhoto, type MyPhoto } from "@/api/profiles";
+import { addGalleryPhoto, deletePhoto, getMyPhotos, setProfilePhoto, type MyPhoto } from "@/api/profiles";
 
 const COLUMNS = 3;
 const GAP = 6;
@@ -28,7 +30,8 @@ export default function MisFotosScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [settingId, setSettingId] = useState<string | null>(null);
+  // Photo with a request in flight (setting as profile or deleting).
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -72,8 +75,8 @@ export default function MisFotosScreen() {
   }
 
   async function handleSetProfile(photo: MyPhoto) {
-    if (photo.isProfilePhoto || settingId) return;
-    setSettingId(photo.id);
+    if (photo.isProfilePhoto || busyId) return;
+    setBusyId(photo.id);
     try {
       await setProfilePhoto(photo.id);
       // Reflect the change right away; the next load confirms the order.
@@ -82,7 +85,67 @@ export default function MisFotosScreen() {
     } catch (e: unknown) {
       Alert.alert("Error", e instanceof Error ? e.message : "No se pudo cambiar la foto de perfil");
     } finally {
-      setSettingId(null);
+      setBusyId(null);
+    }
+  }
+
+  function confirmDelete(photo: MyPhoto) {
+    Alert.alert(
+      "Eliminar foto",
+      photo.isProfilePhoto
+        ? "Es tu foto de perfil. Se usará la siguiente foto de tu galería en su lugar."
+        : "¿Seguro que quieres eliminar esta foto?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            setBusyId(photo.id);
+            try {
+              await deletePhoto(photo.id);
+              setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+              reload();
+            } catch (e: unknown) {
+              Alert.alert("Error", e instanceof Error ? e.message : "No se pudo eliminar la foto");
+            } finally {
+              setBusyId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  function handleLongPress(photo: MyPhoto) {
+    if (busyId) return;
+    const actions: { label: string; run: () => void; destructive?: boolean }[] = [];
+    if (!photo.isProfilePhoto) {
+      actions.push({ label: "Usar como foto de perfil", run: () => handleSetProfile(photo) });
+    }
+    actions.push({ label: "Eliminar foto", run: () => confirmDelete(photo), destructive: true });
+
+    if (Platform.OS === "ios") {
+      const options = ["Cancelar", ...actions.map((a) => a.label)];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: options.indexOf("Eliminar foto"),
+        },
+        (index) => {
+          if (index > 0) actions[index - 1].run();
+        }
+      );
+    } else {
+      Alert.alert("Opciones de foto", undefined, [
+        ...actions.map((a) => ({
+          text: a.label,
+          style: a.destructive ? ("destructive" as const) : undefined,
+          onPress: a.run,
+        })),
+        { text: "Cancelar", style: "cancel" as const },
+      ]);
     }
   }
 
@@ -129,7 +192,9 @@ export default function MisFotosScreen() {
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.grid}
           ListHeaderComponent={
-            <Text style={styles.hint}>Toca una foto para usarla como foto de perfil</Text>
+            <Text style={styles.hint}>
+              Toca una foto para usarla como foto de perfil. Mantén presionada para más opciones.
+            </Text>
           }
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -139,6 +204,8 @@ export default function MisFotosScreen() {
                 item.isProfilePhoto && styles.cellSelected,
               ]}
               onPress={() => handleSetProfile(item)}
+              onLongPress={() => handleLongPress(item)}
+              delayLongPress={300}
               activeOpacity={0.8}
               accessibilityLabel={item.isProfilePhoto ? "Foto de perfil actual" : "Usar como foto de perfil"}
             >
@@ -148,7 +215,7 @@ export default function MisFotosScreen() {
                   <Ionicons name="person" size={11} color="#ffffff" />
                 </View>
               ) : null}
-              {settingId === item.id ? (
+              {busyId === item.id ? (
                 <View style={styles.cellOverlay}>
                   <ActivityIndicator color="#ffffff" />
                 </View>

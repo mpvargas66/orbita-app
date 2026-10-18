@@ -113,6 +113,11 @@ export function setProfilePhoto(photoId: string): Promise<{ ok: true }> {
   return apiRequest(`/api/photos/${photoId}/set-main`, { method: "PATCH" });
 }
 
+// If it was the profile photo, the backend promotes the next safe photo.
+export function deletePhoto(photoId: string): Promise<{ ok: true }> {
+  return apiRequest(`/api/photos/${photoId}`, { method: "DELETE" });
+}
+
 export function sendMessageRequest(
   toProfileId: string,
   message: string
