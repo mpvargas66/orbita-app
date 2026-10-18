@@ -75,9 +75,23 @@ export interface ProfileDetail {
   lastSeenAt: string | null;
 }
 
-export async function getProfiles(): Promise<ProfileSummary[]> {
+export type ProfileTypeFilter = "couple" | "single_f" | "single_m";
+
+export interface ProfileFilters {
+  availableOnly?: boolean;
+  type?: ProfileTypeFilter | null;
+}
+
+export async function getProfiles(filters: ProfileFilters = {}): Promise<ProfileSummary[]> {
+  const params = new URLSearchParams();
+  if (filters.availableOnly) params.set("available", "true");
+  // "couple" matches any couple type on the backend.
+  if (filters.type) params.set("profile_type", filters.type);
+  const query = params.toString();
   // The backend responds with { profiles, pagination }, not a bare array.
-  const data = await apiRequest<{ profiles: ProfileSummary[] }>("/api/profiles");
+  const data = await apiRequest<{ profiles: ProfileSummary[] }>(
+    `/api/profiles${query ? `?${query}` : ""}`
+  );
   return data.profiles;
 }
 
