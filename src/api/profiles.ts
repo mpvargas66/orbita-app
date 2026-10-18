@@ -76,6 +76,19 @@ export function getMyProfile(): Promise<MyProfileResponse> {
   return apiRequest<MyProfileResponse>("/api/profiles/me");
 }
 
+// Uploads a picked image as the new profile photo (the backend replaces the current one).
+export function uploadProfilePhoto(asset: {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+}): Promise<{ url: string; photoId: string }> {
+  const name = asset.fileName ?? asset.uri.split("/").pop() ?? "photo.jpg";
+  const formData = new FormData();
+  // React Native's FormData takes a { uri, name, type } object for files.
+  formData.append("file", { uri: asset.uri, name, type: asset.mimeType ?? "image/jpeg" } as unknown as Blob);
+  return apiRequest("/api/uploads/photo", { method: "POST", body: formData });
+}
+
 export function sendMessageRequest(
   toProfileId: string,
   message: string

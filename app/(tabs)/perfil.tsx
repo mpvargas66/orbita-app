@@ -12,9 +12,10 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useAuthStore } from "@/store/useAuthStore";
 import { Avatar } from "@/components/Avatar";
-import { getMyProfile, type MyProfileResponse } from "@/api/profiles";
+import { getMyProfile, uploadProfilePhoto, type MyProfileResponse } from "@/api/profiles";
 
 const PROFILE_TYPE_LABELS: Record<string, string> = {
   couple_het: "Pareja heterosexual",
@@ -75,6 +76,7 @@ export default function PerfilScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   async function load() {
     try {
@@ -96,6 +98,27 @@ export default function PerfilScreen() {
       load();
     }, [])
   );
+
+  async function handlePickPhoto() {
+    // The system photo picker needs no library permission on iOS 11+ or Android.
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploading(true);
+    try {
+      await uploadProfilePhoto(result.assets[0]);
+      await load();
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "No se pudo subir la foto");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function confirmLogout() {
     Alert.alert("Cerrar sesión", "¿Seguro que quieres cerrar sesión?", [
@@ -151,7 +174,21 @@ export default function PerfilScreen() {
       }
     >
       <View style={styles.header}>
-        <Avatar photoUrl={profile.photoUrl} alias={profile.alias} size={96} />
+        <TouchableOpacity
+          onPress={handlePickPhoto}
+          disabled={uploading}
+          style={styles.avatarWrapper}
+          accessibilityLabel="Cambiar foto de perfil"
+        >
+          <Avatar photoUrl={profile.photoUrl} alias={profile.alias} size={96} />
+          <View style={styles.avatarBadge}>
+            {uploading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <Ionicons name="camera" size={16} color="#ffffff" />
+            )}
+          </View>
+        </TouchableOpacity>
 
         <View style={styles.nameRow}>
           <Text style={styles.alias} numberOfLines={1}>{profile.alias}</Text>
@@ -244,6 +281,22 @@ const styles = StyleSheet.create({
     paddingTop: 72,
     paddingBottom: 24,
     paddingHorizontal: 24,
+  },
+  avatarWrapper: {
+    position: "relative",
+  },
+  avatarBadge: {
+    position: "absolute",
+    right: -4,
+    bottom: -4,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#9333ea",
+    borderWidth: 2,
+    borderColor: "#0a0a0a",
+    alignItems: "center",
+    justifyContent: "center",
   },
   nameRow: {
     flexDirection: "row",
