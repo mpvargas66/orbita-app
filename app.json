@@ -42,6 +42,13 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "efbdc9a8-8722-4a12-ba3a-683afcffbd54"
+      }
+    },
+    "owner": "arauko"
   }
 }
