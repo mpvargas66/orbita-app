@@ -24,7 +24,7 @@ export default function RootLayout() {
     if (!token && !inAuth) {
       router.replace("/(auth)/login");
     } else if (token && inAuth) {
-      router.replace("/(tabs)");
+      router.replace("/(tabs)/inicio");
     }
   }, [token, segments, ready]);
 

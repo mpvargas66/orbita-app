@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const TABS: { name: string; icon: IconName; iconActive: IconName }[] = [
+  { name: "inicio",   icon: "home-outline",       iconActive: "home" },
   { name: "index",    icon: "compass-outline",   iconActive: "compass" },
   { name: "mensajes", icon: "chatbubble-outline", iconActive: "chatbubble" },
   { name: "salas",    icon: "people-outline",     iconActive: "people" },
@@ -13,6 +14,7 @@ const TABS: { name: string; icon: IconName; iconActive: IconName }[] = [
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="inicio"
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
