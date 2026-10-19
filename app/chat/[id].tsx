@@ -16,6 +16,9 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { getConversationMessages, sendMessage, type Message } from "@/api/messages";
 import { ApiError } from "@/api/client";
 import { ReportSheet, showModerationMenu, confirmBlock } from "@/components/Moderation";
+import { PinModal } from "@/components/PinModal";
+import { getChatLockState, verifyChatPin } from "@/api/chatLock";
+import { usePrivateChatsStore } from "@/store/usePrivateChatsStore";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -47,6 +50,17 @@ export default function ChatScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   // Set when the backend refuses the conversation (403/404), e.g. after a block.
   const [unavailable, setUnavailable] = useState(false);
+  // Private chats can be opened from elsewhere (profile, notifications), so check here too.
+  const [isPrivate, setIsPrivate] = useState(false);
+  const unlocked = usePrivateChatsStore((s) => s.unlocked);
+  const unlock = usePrivateChatsStore((s) => s.unlock);
+  const needsPin = isPrivate && !unlocked;
+
+  useEffect(() => {
+    getChatLockState()
+      .then((state) => setIsPrivate(state.lockedConversationIds.includes(id)))
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     let active = true;
@@ -100,6 +114,28 @@ export default function ChatScreen() {
 
   function isMine(message: Message) {
     return (message.senderProfileId ?? message.senderId) === myProfileId;
+  }
+
+  if (needsPin) {
+    return (
+      <View style={styles.screen}>
+        <PinModal
+          visible
+          title="Chat privado"
+          subtitle="Ingresa tu PIN para ver esta conversación"
+          onSubmit={async (pin) => {
+            try {
+              await verifyChatPin(pin);
+            } catch (e: unknown) {
+              return e instanceof Error ? e.message : "PIN incorrecto";
+            }
+            unlock();
+            return null;
+          }}
+          onClose={() => router.back()}
+        />
+      </View>
+    );
   }
 
   return (
