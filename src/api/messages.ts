@@ -22,8 +22,6 @@ export interface Conversation {
   } | null;
   lastMessage: { content: string; createdAt: string; senderProfileId: string } | null;
   unreadCount: number;
-  // Private for the current user (not shared with the other participant).
-  isLocked: boolean;
 }
 
 export function getMessages(conversationId: string): Promise<Message[]> {

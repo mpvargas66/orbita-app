@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "@/store/useAuthStore";
 import { OrbitaFrame } from "@/components/OrbitaFrame";
 import { pingPresence } from "@/api/profiles";
-import { usePrivateChatsStore } from "@/store/usePrivateChatsStore";
 
 const PRESENCE_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -28,18 +27,6 @@ export default function RootLayout() {
       router.replace("/(tabs)/inicio");
     }
   }, [token, segments, ready]);
-
-  // Private chats lock again whenever the app leaves the foreground or the user logs out.
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "background") usePrivateChatsStore.getState().lock();
-    });
-    return () => sub.remove();
-  }, []);
-
-  useEffect(() => {
-    if (!token) usePrivateChatsStore.getState().lock();
-  }, [token]);
 
   // Keep "last seen" fresh while the app is open and in the foreground.
   useEffect(() => {
