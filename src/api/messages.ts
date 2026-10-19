@@ -8,7 +8,18 @@ export interface Message {
   senderProfileId?: string;
   createdAt: string;
   contentType: string;
+  // One per person; empty when nobody reacted.
+  reactions?: MessageReaction[];
 }
+
+export interface MessageReaction {
+  profileId: string;
+  emoji: string;
+}
+
+// Keep in sync with ALLOWED_EMOJIS in orbita-web's /api/messages/[id]/react.
+export const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👍"] as const;
+export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
 
 export interface Conversation {
   id: string;
@@ -38,6 +49,17 @@ export async function getConversationMessages(conversationId: string): Promise<M
     `/api/conversations/${conversationId}/messages`
   );
   return data.messages;
+}
+
+// Sets, replaces or (with null) removes the current user's reaction.
+export function setMessageReaction(
+  messageId: string,
+  emoji: ReactionEmoji | null
+): Promise<{ messageId: string; reactions: MessageReaction[] }> {
+  return apiRequest(`/api/messages/${messageId}/react`, {
+    method: "PUT",
+    body: JSON.stringify({ emoji }),
+  });
 }
 
 export function sendMessage(conversationId: string, content: string): Promise<Message> {

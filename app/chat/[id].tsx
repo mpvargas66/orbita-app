@@ -8,12 +8,22 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Alert,
   StyleSheet,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
-import { getConversationMessages, sendMessage, type Message } from "@/api/messages";
+import {
+  getConversationMessages,
+  sendMessage,
+  setMessageReaction,
+  REACTION_EMOJIS,
+  type Message,
+  type MessageReaction,
+  type ReactionEmoji,
+} from "@/api/messages";
 import { ApiError } from "@/api/client";
 import { ReportSheet, showModerationMenu, confirmBlock } from "@/components/Moderation";
 
@@ -24,6 +34,17 @@ function sortNewestFirst(list: Message[]) {
   return [...list].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+}
+
+// Groups a message's reactions by emoji, in order of first appearance.
+function groupReactions(reactions: MessageReaction[] | undefined) {
+  const groups: { emoji: string; profileIds: string[] }[] = [];
+  for (const r of reactions ?? []) {
+    const group = groups.find((g) => g.emoji === r.emoji);
+    if (group) group.profileIds.push(r.profileId);
+    else groups.push({ emoji: r.emoji, profileIds: [r.profileId] });
+  }
+  return groups;
 }
 
 function formatTime(iso: string) {
@@ -44,6 +65,8 @@ export default function ChatScreen() {
   const [error, setError] = useState("");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  // Message whose reaction picker is open (long-press on a bubble).
+  const [pickerFor, setPickerFor] = useState<Message | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   // Set when the backend refuses the conversation (403/404), e.g. after a block.
   const [unavailable, setUnavailable] = useState(false);
@@ -95,6 +118,25 @@ export default function ChatScreen() {
       else setError(e instanceof Error ? e.message : "No se pudo enviar el mensaje");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function react(message: Message, emoji: ReactionEmoji | null) {
+    setPickerFor(null);
+    if (!myProfileId) return;
+    const previous = message.reactions ?? [];
+    const others = previous.filter((r) => r.profileId !== myProfileId);
+    const next = emoji ? [...others, { profileId: myProfileId, emoji }] : others;
+    const apply = (reactions: MessageReaction[]) =>
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, reactions } : m)));
+
+    apply(next); // Optimistic; reconcile with the server or roll back.
+    try {
+      const res = await setMessageReaction(message.id, emoji);
+      apply(res.reactions);
+    } catch (e: unknown) {
+      apply(previous);
+      Alert.alert("Error", e instanceof Error ? e.message : "No se pudo guardar la reacción");
     }
   }
 
@@ -156,12 +198,40 @@ export default function ChatScreen() {
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => {
             const mine = isMine(item);
+            const groups = groupReactions(item.reactions);
             return (
-              <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                <Text style={styles.bubbleText}>{item.content}</Text>
-                <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>
-                  {formatTime(item.createdAt)}
-                </Text>
+              <View style={[styles.messageBlock, mine ? styles.alignEnd : styles.alignStart]}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onLongPress={() => setPickerFor(item)}
+                  delayLongPress={250}
+                  style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
+                >
+                  <Text style={styles.bubbleText}>{item.content}</Text>
+                  <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>
+                    {formatTime(item.createdAt)}
+                  </Text>
+                </TouchableOpacity>
+                {groups.length > 0 ? (
+                  <View style={[styles.reactionRow, mine ? styles.alignEnd : styles.alignStart]}>
+                    {groups.map((g) => {
+                      const reactedByMe = g.profileIds.includes(myProfileId ?? "");
+                      return (
+                        <TouchableOpacity
+                          key={g.emoji}
+                          style={[styles.reactionChip, reactedByMe && styles.reactionChipMine]}
+                          // Tapping your own emoji removes it; another one switches to it.
+                          onPress={() => react(item, reactedByMe ? null : (g.emoji as ReactionEmoji))}
+                        >
+                          <Text style={styles.reactionEmoji}>{g.emoji}</Text>
+                          {g.profileIds.length > 1 ? (
+                            <Text style={styles.reactionCount}>{g.profileIds.length}</Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
               </View>
             );
           }}
@@ -171,6 +241,30 @@ export default function ChatScreen() {
           }
         />
       )}
+
+      <Modal
+        visible={pickerFor !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickerFor(null)}
+      >
+        <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={() => setPickerFor(null)}>
+          <View style={styles.picker}>
+            {REACTION_EMOJIS.map((emoji) => {
+              const current = pickerFor?.reactions?.find((r) => r.profileId === myProfileId)?.emoji;
+              return (
+                <TouchableOpacity
+                  key={emoji}
+                  style={[styles.pickerOption, current === emoji && styles.pickerOptionSelected]}
+                  onPress={() => pickerFor && react(pickerFor, current === emoji ? null : emoji)}
+                >
+                  <Text style={styles.pickerEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -247,12 +341,80 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
-  bubble: {
+  messageBlock: {
     maxWidth: "78%",
+    marginVertical: 3,
+  },
+  alignEnd: {
+    alignSelf: "flex-end",
+  },
+  alignStart: {
+    alignSelf: "flex-start",
+  },
+  reactionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: -4,
+    paddingHorizontal: 6,
+  },
+  reactionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#141414",
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  reactionChipMine: {
+    borderColor: "#9333ea",
+    backgroundColor: "rgba(147, 51, 234, 0.2)",
+  },
+  reactionEmoji: {
+    fontSize: 13,
+  },
+  reactionCount: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  picker: {
+    flexDirection: "row",
+    gap: 4,
+    backgroundColor: "#141414",
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+    borderRadius: 999,
+    padding: 8,
+  },
+  pickerOption: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerOptionSelected: {
+    backgroundColor: "rgba(147, 51, 234, 0.3)",
+  },
+  pickerEmoji: {
+    fontSize: 26,
+  },
+  bubble: {
+    // Width is capped by messageBlock.
+    maxWidth: "100%",
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    marginVertical: 3,
   },
   bubbleMine: {
     alignSelf: "flex-end",
