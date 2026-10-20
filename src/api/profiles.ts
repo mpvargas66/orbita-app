@@ -147,9 +147,10 @@ export interface MyPhoto {
   thumbnailUrl: string | null;
   isProfilePhoto: boolean;
   isApproved: boolean;
+  isExplicit: boolean;
 }
 
-// Own non-explicit photos only, profile photo first.
+// Own photos, profile photo first.
 export async function getMyPhotos(): Promise<MyPhoto[]> {
   const data = await apiRequest<{ photos: MyPhoto[] }>("/api/photos");
   return data.photos;
@@ -157,6 +158,17 @@ export async function getMyPhotos(): Promise<MyPhoto[]> {
 
 export function setProfilePhoto(photoId: string): Promise<{ ok: true }> {
   return apiRequest(`/api/photos/${photoId}/set-main`, { method: "PATCH" });
+}
+
+export function setCoverPhoto(photoId: string): Promise<{ ok: true }> {
+  return apiRequest(`/api/photos/${photoId}/set-cover`, { method: "PATCH" });
+}
+
+export function setPhotoVisibility(photoId: string, isExplicit: boolean): Promise<{ ok: true; isExplicit: boolean }> {
+  return apiRequest(`/api/photos/${photoId}/visibility`, {
+    method: "PATCH",
+    body: JSON.stringify({ isExplicit }),
+  });
 }
 
 // If it was the profile photo, the backend promotes the next safe photo.

@@ -15,7 +15,15 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { addGalleryPhoto, deletePhoto, getMyPhotos, setProfilePhoto, type MyPhoto } from "@/api/profiles";
+import {
+  addGalleryPhoto,
+  deletePhoto,
+  getMyPhotos,
+  setCoverPhoto,
+  setPhotoVisibility,
+  setProfilePhoto,
+  type MyPhoto,
+} from "@/api/profiles";
 
 const COLUMNS = 3;
 const GAP = 6;
@@ -30,7 +38,6 @@ export default function MisFotosScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  // Photo with a request in flight (setting as profile or deleting).
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -48,21 +55,17 @@ export default function MisFotosScreen() {
       .finally(() => {
         if (active) setLoading(false);
       });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [reloadKey]);
 
   const reload = () => setReloadKey((k) => k + 1);
 
   async function handleAddPhoto() {
-    // The system photo picker needs no library permission on iOS 11+ or Android.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.[0]) return;
-
     setUploading(true);
     try {
       await addGalleryPhoto(result.assets[0].uri);
@@ -79,11 +82,36 @@ export default function MisFotosScreen() {
     setBusyId(photo.id);
     try {
       await setProfilePhoto(photo.id);
-      // Reflect the change right away; the next load confirms the order.
       setPhotos((prev) => prev.map((p) => ({ ...p, isProfilePhoto: p.id === photo.id })));
       reload();
     } catch (e: unknown) {
       Alert.alert("Error", e instanceof Error ? e.message : "No se pudo cambiar la foto de perfil");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSetCover(photo: MyPhoto) {
+    setBusyId(photo.id);
+    try {
+      await setCoverPhoto(photo.id);
+      Alert.alert("Listo", "Foto de portada actualizada");
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "No se pudo cambiar la foto de portada");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleToggleVisibility(photo: MyPhoto) {
+    setBusyId(photo.id);
+    try {
+      const result = await setPhotoVisibility(photo.id, !photo.isExplicit);
+      setPhotos((prev) =>
+        prev.map((p) => (p.id === photo.id ? { ...p, isExplicit: result.isExplicit } : p))
+      );
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "No se pudo cambiar la visibilidad");
     } finally {
       setBusyId(null);
     }
@@ -119,11 +147,20 @@ export default function MisFotosScreen() {
 
   function handleLongPress(photo: MyPhoto) {
     if (busyId) return;
-    const actions: { label: string; run: () => void; destructive?: boolean }[] = [];
+
+    type Action = { label: string; run: () => void; destructive?: boolean };
+    const actions: Action[] = [];
+
     if (!photo.isProfilePhoto) {
-      actions.push({ label: "Usar como foto de perfil", run: () => handleSetProfile(photo) });
+      actions.push({ label: "📌 Establecer como foto de perfil", run: () => handleSetProfile(photo) });
     }
-    actions.push({ label: "Eliminar foto", run: () => confirmDelete(photo), destructive: true });
+    actions.push({ label: "🖼️ Establecer como foto de portada", run: () => handleSetCover(photo) });
+    if (photo.isExplicit) {
+      actions.push({ label: "🔓 Marcar como Pública", run: () => handleToggleVisibility(photo) });
+    } else {
+      actions.push({ label: "🔒 Marcar como Restringida", run: () => handleToggleVisibility(photo) });
+    }
+    actions.push({ label: "🗑️ Eliminar foto", run: () => confirmDelete(photo), destructive: true });
 
     if (Platform.OS === "ios") {
       const options = ["Cancelar", ...actions.map((a) => a.label)];
@@ -131,7 +168,7 @@ export default function MisFotosScreen() {
         {
           options,
           cancelButtonIndex: 0,
-          destructiveButtonIndex: options.indexOf("Eliminar foto"),
+          destructiveButtonIndex: options.indexOf("🗑️ Eliminar foto"),
         },
         (index) => {
           if (index > 0) actions[index - 1].run();
@@ -155,7 +192,10 @@ export default function MisFotosScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={22} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mis fotos</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Fotos y videos</Text>
+          <Text style={styles.headerSubtitle}>Mantén pulsada una foto para ver las opciones disponibles</Text>
+        </View>
         <TouchableOpacity
           onPress={handleAddPhoto}
           disabled={uploading}
@@ -191,9 +231,6 @@ export default function MisFotosScreen() {
           numColumns={COLUMNS}
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.grid}
-          ListHeaderComponent={
-            <Text style={styles.hint}>Toca para elegir foto de perfil · Mantén presionado para opciones</Text>
-          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
@@ -208,16 +245,24 @@ export default function MisFotosScreen() {
               accessibilityLabel={item.isProfilePhoto ? "Foto de perfil actual" : "Usar como foto de perfil"}
             >
               <Image source={{ uri: item.thumbnailUrl ?? item.url }} style={styles.image} />
-              {item.isProfilePhoto ? (
-                <View style={styles.badge}>
+
+              {/* Profile badge */}
+              {item.isProfilePhoto && (
+                <View style={styles.badgeProfile}>
                   <Ionicons name="person" size={11} color="#ffffff" />
                 </View>
-              ) : null}
-              {busyId === item.id ? (
+              )}
+
+              {/* Visibility badge */}
+              <View style={[styles.badgeVisibility, item.isExplicit ? styles.badgeRestricted : styles.badgePublic]}>
+                <Text style={styles.badgeText}>{item.isExplicit ? "Restringida" : "Pública"}</Text>
+              </View>
+
+              {busyId === item.id && (
                 <View style={styles.cellOverlay}>
                   <ActivityIndicator color="#ffffff" />
                 </View>
-              ) : null}
+              )}
             </TouchableOpacity>
           )}
         />
@@ -248,10 +293,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
   headerTitle: {
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "700",
+  },
+  headerSubtitle: {
+    color: "#888888",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 2,
   },
   centered: {
     flex: 1,
@@ -280,16 +336,11 @@ const styles = StyleSheet.create({
   grid: {
     paddingHorizontal: SIDE_PADDING,
     paddingBottom: 32,
+    paddingTop: 12,
   },
   row: {
     gap: GAP,
     marginBottom: GAP,
-  },
-  hint: {
-    color: "#888888",
-    fontSize: 13,
-    textAlign: "center",
-    marginVertical: 14,
   },
   cell: {
     borderRadius: 10,
@@ -305,7 +356,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  badge: {
+  badgeProfile: {
     position: "absolute",
     right: 6,
     bottom: 6,
@@ -316,9 +367,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  badgeVisibility: {
+    position: "absolute",
+    top: 5,
+    left: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgePublic: {
+    backgroundColor: "rgba(16,185,129,0.85)",
+  },
+  badgeRestricted: {
+    backgroundColor: "rgba(220,38,38,0.85)",
+  },
+  badgeText: {
+    color: "#ffffff",
+    fontSize: 8,
+    fontWeight: "700",
+  },
   cellOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
   },
