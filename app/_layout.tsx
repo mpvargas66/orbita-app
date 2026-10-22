@@ -11,7 +11,7 @@ import { registerForPushNotifications } from "@/lib/pushNotifications";
 const PRESENCE_INTERVAL_MS = 2 * 60 * 1000;
 
 export default function RootLayout() {
-  const { token, hydrate } = useAuthStore();
+  const { token, profile, hydrate } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -23,12 +23,17 @@ export default function RootLayout() {
   useEffect(() => {
     if (!ready) return;
     const inAuth = segments[0] === "(auth)";
+    const inCompleteProfile = segments[0] === "completar-perfil";
+    // Accounts without a profile (new signups) finish onboarding before using the app.
+    const hasProfile = !!profile?.id;
     if (!token && !inAuth) {
       router.replace("/(auth)/login");
-    } else if (token && inAuth) {
+    } else if (token && !hasProfile && !inCompleteProfile) {
+      router.replace("/completar-perfil");
+    } else if (token && hasProfile && (inAuth || inCompleteProfile)) {
       router.replace("/(tabs)/inicio");
     }
-  }, [token, segments, ready]);
+  }, [token, profile?.id, segments, ready]);
 
   // Register this device for push notifications whenever there's a session.
   useEffect(() => {

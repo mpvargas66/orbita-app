@@ -9,10 +9,12 @@ import {
   Platform,
   StyleSheet,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useAuthStore } from "@/store/useAuthStore";
 import { login } from "@/api/auth";
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -74,6 +76,12 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.buttonText}>Entrar</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.switchLink} onPress={() => router.replace("/(auth)/register")}>
+            <Text style={styles.switchText}>
+              ¿No tienes cuenta? <Text style={styles.switchTextStrong}>Regístrate</Text>
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -144,5 +152,18 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "600",
     fontSize: 16,
+  },
+  switchLink: {
+    alignItems: "center",
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  switchText: {
+    color: "#888888",
+    fontSize: 14,
+  },
+  switchTextStrong: {
+    color: "#c084fc",
+    fontWeight: "600",
   },
 });

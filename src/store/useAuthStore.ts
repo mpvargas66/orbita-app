@@ -3,7 +3,8 @@ import * as SecureStore from "expo-secure-store";
 import { unregisterPushNotifications } from "@/lib/pushNotifications";
 
 interface Profile {
-  id: string;
+  // null until the user finishes onboarding on the web.
+  id: string | null;
   alias: string;
   profileType: string;
   city?: string;
